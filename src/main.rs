@@ -63,13 +63,22 @@ fn main() {
     let mut scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
     let mut collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
 
-    // 5 ticks pour vérifier que les scouts se déplacent.
+    // 5 ticks pour vérifier déplacement + découvertes des scouts.
     for tick in 0..5 {
+        // Pour chaque scout
         for scout in &mut scouts {
+            // Déplacement aléatoire du scout
             scout.move_randomly(&carte);
+            // Observe les cases voisines après le déplacement.
+            scout.observe(&carte);
         }
         afficher_carte(&carte, &scouts, &collectors);
-        println!("Scout 0 : {:?}", scouts[0].position());
-        println!("Scout 1 : {:?}", scouts[1].position());
+
+        // Affiche les découvertes du tick (vidées au tick suivant via drain).
+        for scout in &mut scouts {
+            for d in scout.discoveries.drain(..) {
+                println!("Scout {} découvre : {:?}", scout.robot.id, d);
+            }
+        }
     }
 }
