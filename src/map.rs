@@ -17,7 +17,7 @@ impl Position {
 }
 
 /// types de ressources possibles
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ResourceType {
     Energy,
     Crystal,
@@ -102,10 +102,10 @@ impl Map {
         let seed: u32 = rng.gen_range(0..u32::MAX);
         let perlin = Perlin::new(seed);
 
-        // Facteur d'échelle : valeur basse = grandes zones, valeur haute = bruit fin.
-        let scale = 0.15;
+        // Facteur d'échelle.
+        let scale = 0.20;
 
-        // — Placement des obstacles via Perlin —
+        // Placement des obstacles via Perlin —
         for y in 0..self.height {
             for x in 0..self.width {
                 let is_center = x == self.width / 2 && y == self.height / 2;
@@ -113,7 +113,7 @@ impl Map {
                 // On convertit (x, y) en coordonnées flottantes pour le bruit.
                 let noise_val = perlin.get([x as f64 * scale, y as f64 * scale]);
 
-                // Si le bruit dépasse le seuil → obstacle (zone naturellement groupée).
+                // Si le bruit dépasse le seuil → obstacle
                 if !is_center && noise_val > obstacle_threshold {
                     self.cells[y][x] = Cell::Obstacle;
                 }
