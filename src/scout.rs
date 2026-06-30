@@ -54,9 +54,12 @@ impl Scout {
             }
             // nouvelle position
             let new_pos = Position::new(nx as usize, ny as usize);
+            // On lit la celulle pour recupérer son contenu
+            let cell = map.get(new_pos);
 
             // On ne se déplace que sur une case vide ou la base (pas sur un obstacle).
-            if let Some(cell) = map.get(new_pos) {
+            // On verifie si cell est pas None (hors carte)
+            if let Some(cell) = cell {
                 if *cell == Cell::Obstacle {
                     continue;
                 }
