@@ -49,8 +49,7 @@ impl Collector {
 
     /// Calcule un chemin simple entre start et goal (BFS).
     /// Retourne les positions à suivre, sans inclure start.
-    #[allow(non_snake_case)]
-    pub fn findPath(start: Position, goal: Position, map: &Map) -> Vec<Position> {
+    pub fn find_path(start: Position, goal: Position, map: &Map) -> Vec<Position> {
         // VecDeque pour la file d'attente des positions à explorer
         let mut queue = VecDeque::new();
         // HashMap pour stocker les positions visitées et leur parent
@@ -146,7 +145,7 @@ impl Collector {
             CollectorState::WaitingForResource => {
                 // Cherche la première ressource connue par la base.
                 if let Some((&target_pos, _)) = known_resources.iter().next() {
-                    let path = Self::findPath(self.robot.position, target_pos, map);
+                    let path = Self::find_path(self.robot.position, target_pos, map);
                     if !path.is_empty() {
                         // attribution du chemin et changement d'état vers MovingToResource
                         self.path = path;
@@ -191,7 +190,7 @@ impl Collector {
                 }
                 // Retour à la base après la collecte
                 // goal = position de la base
-                let path = Self::findPath(self.robot.position, base_pos, map);
+                let path = Self::find_path(self.robot.position, base_pos, map);
                 self.path = path;
                 self.state = CollectorState::ReturningToBase;
             }
