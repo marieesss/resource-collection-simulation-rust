@@ -33,7 +33,7 @@ fn afficher_carte(carte: &Map, scouts: &[Scout], collectors: &[Collector]) {
             let symbole = if let Some(c) = robot_char {
                 c
             } else {
-                // Sinon, on affiche le symbole de la cellule (., O, #, E, C)
+                // Sinon, on affiche le symbole de la cellule (O, #, E, C)
                 match &carte.cells[y][x] {
                     Cell::Empty => '.',
                     Cell::Obstacle => 'O',
@@ -57,14 +57,16 @@ fn main() {
     // Placement de la base sur la carte
     let base_pos = Position::new(carte.width / 2, carte.height / 2);
     // Instanciation de la base avec la position
-    let _base = Base::new(base_pos);
+    let mut base = Base::new(base_pos);
 
     // Deux scouts et deux collectors placés à la base à l'instanciation.
     let mut scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
     let mut collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
 
-    // 5 ticks pour vérifier déplacement + découvertes des scouts.
+    // 5 ticks : déplacement → observation → messages → base.
     for tick in 0..5 {
+        println!("--- Tick {} ---", tick);
+
         // Pour chaque scout
         for scout in &mut scouts {
             // Déplacement aléatoire du scout
@@ -72,13 +74,23 @@ fn main() {
             // Observe les cases voisines après le déplacement.
             scout.observe(&carte);
         }
-        afficher_carte(&carte, &scouts, &collectors);
 
-        // Affiche les découvertes du tick (vidées au tick suivant via drain).
+        // Les scouts convertissent leurs découvertes en messages et les envoient à la base.
         for scout in &mut scouts {
-            for d in scout.discoveries.drain(..) {
-                println!("Scout {} découvre : {:?}", scout.robot.id, d);
+            for msg in scout.flush_discoveries() {
+                println!("  Scout {} → base : {:?}", scout.robot.id, msg);
+                // La base agrège les informations reçues.
+                base.receive_message(msg);
             }
         }
+
+        afficher_carte(&carte, &scouts, &collectors);
+    }
+
+    // Bilan final : ressources connues par la base.
+    println!("\n=== Connaissances de la base ===");
+    println!("Ressources découvertes : {}", base.known_resources.len());
+    for (pos, kind) in &base.known_resources {
+        println!("  {:?} en {:?}", kind, pos);
     }
 }

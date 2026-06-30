@@ -1,6 +1,7 @@
 // Logique des robots éclaireurs : exploration aléatoire, découverte, partage.
 
 use crate::map::{Cell, Map, Position, ResourceType};
+use crate::messages::RobotMessage;
 use crate::robot::{Robot, RobotId, RobotKind};
 use rand::Rng;
 
@@ -82,6 +83,29 @@ impl Scout {
             // Si la case n'est pas valide, on essaie la direction suivante
         }
         // Si toutes les directions sont bloquées, le scout reste sur place.
+    }
+
+    /// Convertit les découvertes accumulées en messages pour la base, puis les vide.
+    pub fn flush_discoveries(&mut self) -> Vec<RobotMessage> {
+        let id = self.robot.id;
+        // drain transfère l'ownership de chaque Discovery.
+        // Drain iter sur les discoveries, renvoie la valeur dans le Vec et clear le Vec à la fin (iter + clear)
+        self.discoveries
+            // Tout les élements du Vec
+            .drain(..)
+            .map(|d| match d {
+                // On convertit chaque découverte en message pour la base
+                Discovery::Resource(pos, kind) => RobotMessage::ResourceDiscovered {
+                    from: id,
+                    position: pos,
+                    kind,
+                },
+                Discovery::Obstacle(pos) => RobotMessage::ObstacleDiscovered {
+                    from: id,
+                    position: pos,
+                },
+            })
+            .collect()
     }
 
     /// Observe les cases adjacentes et enregistre les découvertes (ressources + obstacles).
