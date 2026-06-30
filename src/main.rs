@@ -9,50 +9,25 @@ mod scout;
 mod simulation;
 mod ui;
 
+use std::time::Duration;
+
+use crossterm::{
+    event::{self, Event},
+    execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
+};
+use ratatui::Terminal;
+use ratatui::backend::CrosstermBackend;
+
 use base::Base;
 use collector::Collector;
-use map::{Cell, Map, Position, ResourceType};
+use map::{Map, Position, ResourceType};
 use scout::Scout;
 
-fn afficher_carte(carte: &Map, scouts: &[Scout], collectors: &[Collector]) {
-    for y in 0..carte.height {
-        for x in 0..carte.width {
-            let pos = Position::new(x, y);
-
-            // Les robots ont la priorité d'affichage sur les cellules, renvoie x ou o
-            let robot_char = scouts
-                // pour chaque scout
-                .iter()
-                // on cherche si sa position correspond à la cellule en cours
-                .find(|s| s.position() == pos)
-                .map(|_| 'x')
-                // si aucun scout n'est trouvé, on cherche un collector
-                .or_else(|| collectors.iter().find(|c| c.position() == pos).map(|_| 'o'));
-
-            // Afficher caractère (x ou o) correspondant à la cellule ou au robot
-            let symbole = if let Some(c) = robot_char {
-                c
-            } else {
-                // Sinon, on affiche le symbole de la cellule (O, #, E, C)
-                match &carte.cells[y][x] {
-                    Cell::Empty => '.',
-                    Cell::Obstacle => 'O',
-                    Cell::Base => '#',
-                    Cell::Resource(r) => match r.kind {
-                        ResourceType::Energy => 'E',
-                        ResourceType::Crystal => 'C',
-                    },
-                }
-            };
-            print!("{}", symbole);
-        }
-        println!();
-    }
-}
-
-fn main() {
-    let mut carte = Map::new(40, 20);
-    carte.generate(0.2, 10);
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // — Initialisation de la carte et des entités —
+    let mut carte = Map::new(60, 30);
+    carte.generate(0.2, 15);
 
     // Placement de la base sur la carte
     let base_pos = Position::new(carte.width / 2, carte.height / 2);
@@ -63,11 +38,33 @@ fn main() {
     let mut scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
     let mut collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
 
-    // 50 ticks : scouts explorent, collectors collectent et reviennent à la base.
-    for tick in 0..50 {
-        println!("--- Tick {} ---", tick);
+    // Initialisation du terminal Ratatui —
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    let backend = CrosstermBackend::new(stdout);
+    let mut terminal = Terminal::new(backend)?;
 
-        // Pour chaque scout
+    // Vider les événements bufférisés avant le démarrage (évite une sortie immédiate).
+    while event::poll(Duration::from_millis(0))? {
+        event::read()?;
+    }
+
+    // Boucle de simulation
+    loop {
+        // Rendu de l'interface.
+        terminal.draw(|frame| {
+            ui::draw(frame, &carte, &scouts, &collectors, &base);
+        })?;
+
+        // Toute touche clavier quitte la simulation.
+        if event::poll(Duration::from_millis(100))? {
+            if let Event::Key(_) = event::read()? {
+                break;
+            }
+        }
+
+        // Pour chaque scout : déplacement + observation
         for scout in &mut scouts {
             // Déplacement aléatoire du scout
             scout.move_randomly(&carte);
@@ -91,13 +88,16 @@ fn main() {
                 base.receive_message(msg);
             }
         }
-
-        afficher_carte(&carte, &scouts, &collectors);
     }
 
-    // Bilan final.
-    println!("\n=== Bilan final ===");
+    // — Restauration du terminal —
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
+
+    // Bilan final affiché dans le terminal normal.
+    println!("=== Simulation terminée ===");
     println!("Energie collectée  : {}", base.total(ResourceType::Energy));
     println!("Cristaux collectés : {}", base.total(ResourceType::Crystal));
-    println!("Ressources connues : {}", base.known_resources.len());
+
+    Ok(())
 }
