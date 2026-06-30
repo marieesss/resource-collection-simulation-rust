@@ -63,8 +63,8 @@ fn main() {
     let mut scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
     let mut collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
 
-    // 5 ticks : déplacement → observation → messages → base.
-    for tick in 0..5 {
+    // 20 ticks : scouts explorent, collectors suivent les ressources connues.
+    for tick in 0..20 {
         println!("--- Tick {} ---", tick);
 
         // Pour chaque scout
@@ -78,10 +78,14 @@ fn main() {
         // Les scouts convertissent leurs découvertes en messages et les envoient à la base.
         for scout in &mut scouts {
             for msg in scout.flush_discoveries() {
-                println!("  Scout {} → base : {:?}", scout.robot.id, msg);
                 // La base agrège les informations reçues.
                 base.receive_message(msg);
             }
+        }
+
+        // Les collectors avancent vers les ressources connues par la base.
+        for collector in &mut collectors {
+            collector.state_change(&carte, &base.known_resources);
         }
 
         afficher_carte(&carte, &scouts, &collectors);
