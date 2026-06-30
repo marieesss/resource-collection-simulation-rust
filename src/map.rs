@@ -24,7 +24,7 @@ pub enum ResourceType {
 }
 
 /// Ressource sur la carte
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Resource {
     pub kind: ResourceType,
     pub amount: u32,
@@ -45,7 +45,7 @@ impl Resource {
 }
 
 /// Contenu possible d'une cellule de la carte.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Cell {
     Empty,
     Obstacle,
