@@ -63,8 +63,8 @@ fn main() {
     let mut scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
     let mut collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
 
-    // 20 ticks : scouts explorent, collectors suivent les ressources connues.
-    for tick in 0..20 {
+    // 50 ticks : scouts explorent, collectors collectent et reviennent à la base.
+    for tick in 0..50 {
         println!("--- Tick {} ---", tick);
 
         // Pour chaque scout
@@ -83,18 +83,21 @@ fn main() {
             }
         }
 
-        // Les collectors avancent vers les ressources connues par la base.
+        // Les collectors avancent, collectent et déchargent à la base
         for collector in &mut collectors {
-            collector.state_change(&carte, &base.known_resources);
+            let msgs = collector.state_change(&mut carte, &base.known_resources, base_pos);
+            // Les messages de collecte et dépôt sont transmis à la base.
+            for msg in msgs {
+                base.receive_message(msg);
+            }
         }
 
         afficher_carte(&carte, &scouts, &collectors);
     }
 
-    // Bilan final : ressources connues par la base.
-    println!("\n=== Connaissances de la base ===");
-    println!("Ressources découvertes : {}", base.known_resources.len());
-    for (pos, kind) in &base.known_resources {
-        println!("  {:?} en {:?}", kind, pos);
-    }
+    // Bilan final.
+    println!("\n=== Bilan final ===");
+    println!("Energie collectée  : {}", base.total(ResourceType::Energy));
+    println!("Cristaux collectés : {}", base.total(ResourceType::Crystal));
+    println!("Ressources connues : {}", base.known_resources.len());
 }

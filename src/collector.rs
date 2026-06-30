@@ -1,6 +1,7 @@
-// Logique des robots collecteurs : navigation vers ressources, collecte, retour base.
+﻿// Logique des robots collecteurs : navigation vers ressources, collecte, retour base.
 
 use crate::map::{Cell, Map, Position, ResourceType};
+use crate::messages::RobotMessage;
 use crate::robot::{Robot, RobotId, RobotKind};
 use std::collections::{HashMap, VecDeque};
 
@@ -26,7 +27,7 @@ pub struct Collector {
     pub state: CollectorState,
     /// type de ressource (energy ou crystal) None si pas de ressource
     pub carrying: Option<ResourceType>,
-    /// Prochain pas du chemin calculé  (None si pas de chemin actif).
+    /// Chemin calculé par BFS vers la cible (None si pas de chemin actif).
     pub path: Vec<Position>,
 }
 
@@ -46,8 +47,9 @@ impl Collector {
         self.robot.position
     }
 
-    /// Calcule un chemin simple entre start et .
+    /// Calcule un chemin simple entre start et goal (BFS).
     /// Retourne les positions à suivre, sans inclure start.
+    #[allow(non_snake_case)]
     pub fn findPath(start: Position, goal: Position, map: &Map) -> Vec<Position> {
         // VecDeque pour la file d'attente des positions à explorer
         let mut queue = VecDeque::new();
@@ -126,29 +128,33 @@ impl Collector {
         }
     }
 
-    /// Logique d'un tick pour un robot collector :
-    /// Si WaitingForResource et ressources connues → choisit une cible et calcule le chemin.
-    /// Si en déplacement → avance d'un pas.
-    pub fn state_change(&mut self, map: &Map, known_resources: &HashMap<Position, ResourceType>) {
+    /// Logique complète pour un collector.
+    /// Retourne les messages à envoyer à la base (collecte, dépôt).
+    pub fn state_change(
+        &mut self, // robot collecteur
+        map: &mut Map,
+        known_resources: &HashMap<Position, ResourceType>,
+        base_pos: Position,
+    ) -> Vec<RobotMessage> {
+        // Messages générés ce tick (collecte ou dépôt).
+        let mut messages = Vec::new();
+
         // Clone pour ne pas modifier la référence
         // On verifie l'état du robot
         match self.state.clone() {
             // Si le robot attend une ressource
             CollectorState::WaitingForResource => {
                 // Cherche la première ressource connue par la base.
-                if let Some((&target_pos, &kind)) = known_resources.iter().next() {
+                if let Some((&target_pos, _)) = known_resources.iter().next() {
                     let path = Self::findPath(self.robot.position, target_pos, map);
                     if !path.is_empty() {
                         // attribution du chemin et changement d'état vers MovingToResource
                         self.path = path;
                         self.state = CollectorState::MovingToResource(target_pos);
-                        println!(
-                            "  Collector {} → cible {:?} ({:?})",
-                            self.robot.id, target_pos, kind
-                        );
                     }
                 }
             }
+
             // Si le robot est en déplacement vers une ressource
             CollectorState::MovingToResource(target) => {
                 // Si le robot est arrivé à la ressource, on change d'état vers Collecting
@@ -160,7 +166,56 @@ impl Collector {
                     self.step_along_path();
                 }
             }
-            _ => {}
+            // Si le robot est en train de collecter une ressource
+            CollectorState::Collecting(target) => {
+                // On accède à la cellule cible et on prélève une unité.
+                if let Cell::Resource(resource) = &mut map.cells[target.y][target.x] {
+                    let kind = resource.kind;
+                    // Retire une unité, retourne true si la ressource est épuisée.
+                    let exhausted = resource.take_one();
+
+                    // Le collector transporte maintenant la ressource.
+                    self.carrying = Some(kind);
+
+                    // On envoie un message à la base pour indiquer la collecte
+                    messages.push(RobotMessage::ResourceCollected {
+                        from: self.robot.id,
+                        position: target,
+                        kind,
+                    });
+
+                    // Si la ressource est épuisée, on vide la case sur la carte.
+                    if exhausted {
+                        map.cells[target.y][target.x] = Cell::Empty;
+                    }
+                }
+                // Retour à la base après la collecte
+                // goal = position de la base
+                let path = Self::findPath(self.robot.position, base_pos, map);
+                self.path = path;
+                self.state = CollectorState::ReturningToBase;
+            }
+
+            // Si le robot est en train de retourner à la base
+            CollectorState::ReturningToBase => {
+                // Si le robot est arrivé à la base
+                if self.robot.position == base_pos {
+                    if let Some(kind) = self.carrying.take() {
+                        // On envoie un message à la base pour indiquer le dépôt
+                        messages.push(RobotMessage::ResourceDeposited {
+                            from: self.robot.id,
+                            kind,
+                        });
+                    }
+                    // Retour à l'état d'attente pour le prochain cycle.
+                    self.state = CollectorState::WaitingForResource;
+                } else {
+                    // Avance d'un pas vers la base.
+                    self.step_along_path();
+                }
+            }
         }
+
+        messages
     }
 }
