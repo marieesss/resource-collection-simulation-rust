@@ -17,11 +17,12 @@ use crate::scout::Scout;
 pub fn draw(frame: &mut Frame, map: &Map, scouts: &[Scout], collectors: &[Collector], base: &Base) {
     let areas = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(3)])
+        // Length(4) = 2 bordures + 2 lignes de contenu
+        .constraints([Constraint::Min(0), Constraint::Length(4)])
         .split(frame.area());
 
     draw_map(frame, areas[0], map, scouts, collectors);
-    draw_stats(frame, areas[1], base);
+    draw_stats(frame, areas[1], map, scouts, collectors, base);
 }
 
 /// Dessine la carte avec les robots superposés.
@@ -45,10 +46,16 @@ fn draw_map(
             // find() retourne le robot à cette position, symbol() donne son caractère.
             let span = if let Some(s) = scouts.iter().find(|s| s.position() == pos) {
                 // Scout : symbol() retourne 'x', affiché en rouge.
-                Span::styled(s.robot.symbol().to_string(), Style::default().fg(Color::Red))
+                Span::styled(
+                    s.robot.symbol().to_string(),
+                    Style::default().fg(Color::Red),
+                )
             } else if let Some(c) = collectors.iter().find(|c| c.position() == pos) {
                 // Collector : symbol() retourne 'o', affiché en magenta.
-                Span::styled(c.robot.symbol().to_string(), Style::default().fg(Color::Magenta))
+                Span::styled(
+                    c.robot.symbol().to_string(),
+                    Style::default().fg(Color::Magenta),
+                )
             } else {
                 // Sinon, on affiche la cellule avec sa couleur.
                 match &map.cells[y][x] {
@@ -80,19 +87,66 @@ fn draw_map(
     frame.render_widget(carte_widget, area);
 }
 
-/// Dessine le panneau de statistiques en bas.
-fn draw_stats(frame: &mut Frame, area: ratatui::layout::Rect, base: &Base) {
-    let energie = base.total(ResourceType::Energy);
-    let cristaux = base.total(ResourceType::Crystal);
+/// Dessine le panneau de statistiques en bas (2 lignes de contenu).
+fn draw_stats(
+    frame: &mut Frame,
+    area: ratatui::layout::Rect,
+    map: &Map,
+    scouts: &[Scout],
+    collectors: &[Collector],
+    base: &Base,
+) {
+    // Somme des unités restantes sur toutes les ressources de la carte.
+    let restantes: u32 = map
+        .cells
+        .iter()
+        .flat_map(|row| row.iter())
+        .filter_map(|cell| {
+            if let Cell::Resource(r) = cell {
+                Some(r.amount)
+            } else {
+                None
+            }
+        })
+        .sum();
 
-    let texte = Line::from(vec![
+    // robots actifs + ressources restantes + obstacles découverts.
+    let ligne1 = Line::from(vec![
+        Span::raw("  "),
+        Span::styled("Scouts : ", Style::default().fg(Color::Red)),
+        Span::styled(scouts.len().to_string(), Style::default().fg(Color::Red)),
+        Span::raw("   "),
+        Span::styled("Collectors : ", Style::default().fg(Color::Magenta)),
+        Span::styled(
+            collectors.len().to_string(),
+            Style::default().fg(Color::Magenta),
+        ),
+        Span::raw("   "),
+        Span::styled(
+            "Ressources restantes : ",
+            Style::default().fg(Color::Yellow),
+        ),
+        Span::styled(restantes.to_string(), Style::default().fg(Color::Yellow)),
+        Span::raw("   "),
+        Span::styled("Obstacles découverts : ", Style::default().fg(Color::Cyan)),
+        Span::styled(
+            base.known_obstacles.len().to_string(),
+            Style::default().fg(Color::Cyan),
+        ),
+    ]);
+
+    // ressources collectées + aide clavier.
+    let ligne2 = Line::from(vec![
         Span::raw("  "),
         Span::styled("Energie : ", Style::default().fg(Color::Green)),
-        Span::styled(energie.to_string(), Style::default().fg(Color::Green)),
+        Span::styled(
+            base.total(ResourceType::Energy).to_string(),
+            Style::default().fg(Color::Green),
+        ),
         Span::raw("   "),
         Span::styled("Cristaux : ", Style::default().fg(Color::LightMagenta)),
         Span::styled(
-            cristaux.to_string(),
+            base.total(ResourceType::Crystal).to_string(),
             Style::default().fg(Color::LightMagenta),
         ),
         Span::raw("   "),
@@ -102,11 +156,8 @@ fn draw_stats(frame: &mut Frame, area: ratatui::layout::Rect, base: &Base) {
         ),
     ]);
 
-    let stats_widget = Paragraph::new(texte).block(
-        Block::default()
-            .borders(Borders::ALL)
-            .title("Ressources collectées"),
-    );
+    let stats_widget = Paragraph::new(vec![ligne1, ligne2])
+        .block(Block::default().borders(Borders::ALL).title("Statistiques"));
 
     frame.render_widget(stats_widget, area);
 }

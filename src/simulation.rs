@@ -81,6 +81,7 @@ impl Simulation {
                 &self.base.known_resources,
                 self.base.position,
                 &targeted,
+                &self.base.known_obstacles,
             );
             // Si ce collector vient de choisir une cible, on l'ajoute immédiatement
             // pour que le prochain collector dans la boucle ne la prenne pas.

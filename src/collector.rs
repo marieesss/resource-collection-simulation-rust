@@ -47,9 +47,13 @@ impl Collector {
         self.robot.position
     }
 
-    /// Calcule un chemin simple entre start et goal (BFS).
-    /// Retourne les positions à suivre, sans inclure start.
-    pub fn find_path(start: Position, goal: Position, map: &Map) -> Vec<Position> {
+    /// Calcule un chemin entre start et goal (BFS) en évitant tous les obstacles de la carte.
+    pub fn find_path(
+        start: Position,
+        goal: Position,
+        map: &Map,
+        known_obstacles: &HashSet<Position>,
+    ) -> Vec<Position> {
         // VecDeque pour la file d'attente des positions à explorer
         let mut queue = VecDeque::new();
         // HashMap pour stocker les positions visitées et leur parent
@@ -77,25 +81,25 @@ impl Collector {
             ];
 
             for neighbor in neighbors {
-                // Si la celulle a déjà été visitée, on l'ignore
+                // Déjà visitée → on passe.
                 if visited.contains_key(&neighbor) {
                     continue;
                 }
-
-                // Si on peut se déplacer sur la celulle (pas hors carte)
-                let Some(cell) = map.get(neighbor) else {
+                // Hors carte → on passe.
+                if map.get(neighbor).is_none() {
                     continue;
-                };
-
-                // Si la celulle est un obstacle, on l'ignore
-                match cell {
-                    Cell::Obstacle => continue,
-                    // Sinon on l'ajoute à la file d'attente et on marque comme visitée
-                    _ => {
-                        visited.insert(neighbor, current);
-                        queue.push_back(neighbor);
-                    }
                 }
+                // Obstacle réel sur la carte → toujours évité.
+                if matches!(map.get(neighbor), Some(Cell::Obstacle)) {
+                    continue;
+                }
+                // Obstacle signalé par les scouts → évité explicitement.
+                if known_obstacles.contains(&neighbor) {
+                    continue;
+                }
+
+                visited.insert(neighbor, current);
+                queue.push_back(neighbor);
             }
         }
 
@@ -134,8 +138,9 @@ impl Collector {
         map: &mut Map,
         known_resources: &HashMap<Position, ResourceType>,
         base_pos: Position,
-        // Positions déjà réservées par d'autres collectors ce tick.
         targeted: &HashSet<Position>,
+        // Obstacles connus des scouts
+        known_obstacles: &HashSet<Position>,
     ) -> Vec<RobotMessage> {
         // Messages générés ce tick (collecte ou dépôt).
         let mut messages = Vec::new();
@@ -150,7 +155,8 @@ impl Collector {
                     .iter()
                     .find(|(pos, _)| !targeted.contains(pos))
                 {
-                    let path = Self::find_path(self.robot.position, *target_pos, map);
+                    let path =
+                        Self::find_path(self.robot.position, *target_pos, map, known_obstacles);
                     if !path.is_empty() {
                         // attribution du chemin et changement d'état vers MovingToResource
                         self.path = path;
@@ -163,7 +169,7 @@ impl Collector {
             CollectorState::MovingToResource(target) => {
                 // Si le robot est arrivé à la ressource, on change d'état vers Collecting
                 if self.robot.position == target {
-                    // Arrivé sur la ressource → passage à l'état Collecting.
+                    // Arrivé sur la ressource,  passage à l'état Collecting.
                     self.state = CollectorState::Collecting(target);
                 } else {
                     // Avance d'un pas vers la cible.
@@ -197,7 +203,7 @@ impl Collector {
                     }
                 }
                 // Retour à la base après la collecte.
-                let path = Self::find_path(self.robot.position, base_pos, map);
+                let path = Self::find_path(self.robot.position, base_pos, map, known_obstacles);
                 self.path = path;
                 self.state = CollectorState::ReturningToBase;
             }

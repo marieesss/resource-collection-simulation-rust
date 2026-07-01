@@ -2,7 +2,7 @@
 
 use crate::map::{Position, ResourceType};
 use crate::messages::RobotMessage;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// La base centrale : point de départ, stockage, et futur centre de communication.
 pub struct Base {
@@ -12,6 +12,8 @@ pub struct Base {
     pub stored: HashMap<ResourceType, u32>,
     /// Ressources découvertes par les scouts : position → type.
     pub known_resources: HashMap<Position, ResourceType>,
+    /// Obstacles découverts par les scouts : utilisés par le BFS des collectors.
+    pub known_obstacles: HashSet<Position>,
 }
 
 impl Base {
@@ -26,6 +28,7 @@ impl Base {
             position,
             stored,
             known_resources: HashMap::new(),
+            known_obstacles: HashSet::new(),
         }
     }
 
@@ -47,15 +50,16 @@ impl Base {
             RobotMessage::ResourceDiscovered { position, kind, .. } => {
                 self.known_resources.entry(position).or_insert(kind);
             }
-            // Un scout a découvert un obstacle : on le note (futur pathfinding).
-            RobotMessage::ObstacleDiscovered { .. } => {
-                // Stockage des obstacles prévu au commit 11 si nécessaire.
+            // Un scout a découvert un obstacle : on l'ajoute aux obstacles connus.
+            // Les collectors les utiliseront pour planifier leurs chemins.
+            RobotMessage::ObstacleDiscovered { position } => {
+                self.known_obstacles.insert(position);
             }
             // Un collector a déposé une ressource : on incrémente le stock.
             RobotMessage::ResourceDeposited { kind, .. } => {
                 self.deposit(kind);
             }
-            // Un collector a prélevé : on retire immédiatement des connaissances.
+            // Un collector a prélevé : on retire immédiatement des ressources connues.
             // Si la ressource a encore des unités, les scouts la redécouvriront.
             RobotMessage::ResourceCollected { position } => {
                 self.known_resources.remove(&position);
