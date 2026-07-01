@@ -52,4 +52,4 @@ rand     = "0.8"    # placement aléatoire, déplacement des scouts
 - Thomas Stecinski
 - Mattheo Naegellen
 - Boris Prince
-- Imane 
+- Imane Zazar
