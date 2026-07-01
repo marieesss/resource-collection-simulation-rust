@@ -87,11 +87,6 @@ impl Map {
         }
     }
 
-    /// Retourne true si la position est dans les limites de la carte.
-    pub fn in_bounds(&self, pos: Position) -> bool {
-        pos.x < self.width && pos.y < self.height
-    }
-
     /// Génère la carte : obstacles, ressources aléatoires, base centrale.
     /// obstacle_threshold : seuil Perlin au-dessus duquel une cellule devient obstacle
     /// resource_count : nombre de ressources Energy + Crystal à placer.
@@ -103,7 +98,7 @@ impl Map {
         let perlin = Perlin::new(seed);
 
         // Facteur d'échelle.
-        let scale = 0.20;
+        let scale = 0.27;
 
         // Placement des obstacles via Perlin —
         for y in 0..self.height {
@@ -113,7 +108,7 @@ impl Map {
                 // On convertit (x, y) en coordonnées flottantes pour le bruit.
                 let noise_val = perlin.get([x as f64 * scale, y as f64 * scale]);
 
-                // Si le bruit dépasse le seuil → obstacle
+                // Si le bruit dépasse le seuil obstacle
                 if !is_center && noise_val > obstacle_threshold {
                     self.cells[y][x] = Cell::Obstacle;
                 }

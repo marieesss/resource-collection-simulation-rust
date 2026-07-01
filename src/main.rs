@@ -9,6 +9,8 @@ mod scout;
 mod simulation;
 mod ui;
 
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::time::Duration;
 
 use crossterm::{
@@ -19,26 +21,29 @@ use crossterm::{
 use ratatui::Terminal;
 use ratatui::backend::CrosstermBackend;
 
-use base::Base;
-use collector::Collector;
-use map::{Map, Position, ResourceType};
-use scout::Scout;
+use map::ResourceType;
+use simulation::Simulation;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // — Initialisation de la carte et des entités —
-    let mut carte = Map::new(60, 30);
-    carte.generate(0.2, 15);
+    //Création de la simulation
+    let simulation = Arc::new(Mutex::new(Simulation::new(60, 30)));
 
-    // Placement de la base sur la carte
-    let base_pos = Position::new(carte.width / 2, carte.height / 2);
-    // Instanciation de la base avec la position
-    let mut base = Base::new(base_pos);
+    // Arc::clone crée un nouveau pointeur vers le même Mutex<Simulation>.
+    let sim_thread = Arc::clone(&simulation);
+    thread::spawn(move || {
+        loop {
+            // On verrouille le Mutex le temps d'un tick, puis on le relâche.
+            {
+                let mut sim = sim_thread.lock().unwrap();
+                sim.tick();
+            }
 
-    // Deux scouts et deux collectors placés à la base à l'instanciation.
-    let mut scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
-    let mut collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
+            // Pause entre deux ticks : vitesse de simulation.
+            thread::sleep(Duration::from_millis(150));
+        }
+    });
 
-    // Initialisation du terminal Ratatui —
+    // Initialisation du terminal Ratatui
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen)?;
@@ -50,54 +55,41 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         event::read()?;
     }
 
-    // Boucle de simulation
     loop {
-        // Rendu de l'interface.
-        terminal.draw(|frame| {
-            ui::draw(frame, &carte, &scouts, &collectors, &base);
-        })?;
+        // Verrouille brièvement pour lire l'état et dessiner.
+        {
+            let sim = simulation.lock().unwrap();
+            terminal.draw(|frame| {
+                ui::draw(frame, &sim.map, &sim.scouts, &sim.collectors, &sim.base);
+            })?;
+        } // Verrou relâché → thread simulation peut reprendre.
 
         // Toute touche clavier quitte la simulation.
-        if event::poll(Duration::from_millis(100))? {
+        if event::poll(Duration::from_millis(0))? {
             if let Event::Key(_) = event::read()? {
                 break;
             }
         }
 
-        // Pour chaque scout : déplacement + observation
-        for scout in &mut scouts {
-            // Déplacement aléatoire du scout
-            scout.move_randomly(&carte);
-            // Observe les cases voisines après le déplacement.
-            scout.observe(&carte);
-        }
-
-        // Les scouts convertissent leurs découvertes en messages et les envoient à la base.
-        for scout in &mut scouts {
-            for msg in scout.flush_discoveries() {
-                // La base agrège les informations reçues.
-                base.receive_message(msg);
-            }
-        }
-
-        // Les collectors avancent, collectent et déchargent à la base
-        for collector in &mut collectors {
-            let msgs = collector.state_change(&mut carte, &base.known_resources, base_pos);
-            // Les messages de collecte et dépôt sont transmis à la base.
-            for msg in msgs {
-                base.receive_message(msg);
-            }
-        }
+        // Courte pause pour ne pas saturer le CPU du thread UI.
+        thread::sleep(Duration::from_millis(50));
     }
 
-    // — Restauration du terminal —
+    // Restauration du terminal
     disable_raw_mode()?;
     execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
 
-    // Bilan final affiché dans le terminal normal.
+    // Bilan final dans le terminal normal.
+    let sim = simulation.lock().unwrap();
     println!("=== Simulation terminée ===");
-    println!("Energie collectée  : {}", base.total(ResourceType::Energy));
-    println!("Cristaux collectés : {}", base.total(ResourceType::Crystal));
+    println!(
+        "Energie collectée  : {}",
+        sim.base.total(ResourceType::Energy)
+    );
+    println!(
+        "Cristaux collectés : {}",
+        sim.base.total(ResourceType::Crystal)
+    );
 
     Ok(())
 }

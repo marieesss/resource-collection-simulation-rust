@@ -41,18 +41,14 @@ fn draw_map(
         for x in 0..map.width {
             let pos = Position::new(x, y);
 
-            // Vérifie si un scout est sur cette case.
-            let scout_here = scouts.iter().any(|s| s.position() == pos);
-            // Vérifie si un collector est sur cette case.
-            let collector_here = collectors.iter().any(|c| c.position() == pos);
-
             // Priorité d'affichage : robots > contenu de la cellule.
-            let span = if scout_here {
-                // Scout : x en rouge
-                Span::styled("x", Style::default().fg(Color::Red))
-            } else if collector_here {
-                // Collector : o en magenta
-                Span::styled("o", Style::default().fg(Color::Magenta))
+            // find() retourne le robot à cette position, symbol() donne son caractère.
+            let span = if let Some(s) = scouts.iter().find(|s| s.position() == pos) {
+                // Scout : symbol() retourne 'x', affiché en rouge.
+                Span::styled(s.robot.symbol().to_string(), Style::default().fg(Color::Red))
+            } else if let Some(c) = collectors.iter().find(|c| c.position() == pos) {
+                // Collector : symbol() retourne 'o', affiché en magenta.
+                Span::styled(c.robot.symbol().to_string(), Style::default().fg(Color::Magenta))
             } else {
                 // Sinon, on affiche la cellule avec sa couleur.
                 match &map.cells[y][x] {

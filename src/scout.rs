@@ -87,23 +87,15 @@ impl Scout {
 
     /// Convertit les découvertes accumulées en messages pour la base, puis les vide.
     pub fn flush_discoveries(&mut self) -> Vec<RobotMessage> {
-        let id = self.robot.id;
-        // drain transfère l'ownership de chaque Discovery.
-        // Drain iter sur les discoveries, renvoie la valeur dans le Vec et clear le Vec à la fin (iter + clear)
+        // drain : transfère l'ownership de chaque Discovery et vide le Vec en une passe.
         self.discoveries
-            // Tout les élements du Vec
             .drain(..)
             .map(|d| match d {
-                // On convertit chaque découverte en message pour la base
                 Discovery::Resource(pos, kind) => RobotMessage::ResourceDiscovered {
-                    from: id,
                     position: pos,
                     kind,
                 },
-                Discovery::Obstacle(pos) => RobotMessage::ObstacleDiscovered {
-                    from: id,
-                    position: pos,
-                },
+                Discovery::Obstacle(pos) => RobotMessage::ObstacleDiscovered { position: pos },
             })
             .collect()
     }

@@ -55,10 +55,10 @@ impl Base {
             RobotMessage::ResourceDeposited { kind, .. } => {
                 self.deposit(kind);
             }
-            // Un collector a prélevé : on retire la ressource des connaissances si épuisée.
-            RobotMessage::ResourceCollected { position, .. } => {
-                // Mise à jour fine de la carte prévue au commit 14.
-                let _ = position;
+            // Un collector a prélevé : on retire immédiatement des connaissances.
+            // Si la ressource a encore des unités, les scouts la redécouvriront.
+            RobotMessage::ResourceCollected { position } => {
+                self.known_resources.remove(&position);
             }
         }
     }
