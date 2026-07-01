@@ -2,7 +2,7 @@
 
 use crate::map::{Cell, Map, Position, ResourceType};
 use crate::messages::RobotMessage;
-use crate::robot::{Robot, RobotId, RobotKind};
+use crate::robot::{Robot, RobotKind};
 use rand::Rng;
 
 /// Ce qu'un scout peut découvrir sur une case voisine.
@@ -24,9 +24,9 @@ pub struct Scout {
 
 impl Scout {
     // Instanciation du robot
-    pub fn new(id: RobotId, position: Position) -> Self {
+    pub fn new(position: Position) -> Self {
         Self {
-            robot: Robot::new(id, RobotKind::Scout, position),
+            robot: Robot::new(RobotKind::Scout, position),
             discoveries: Vec::new(),
         }
     }

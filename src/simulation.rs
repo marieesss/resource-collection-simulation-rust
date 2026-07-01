@@ -34,8 +34,8 @@ impl Simulation {
         let (tx, rx) = mpsc::channel();
 
         // Deux scouts et deux collectors démarrent tous à la base.
-        let scouts = vec![Scout::new(0, base_pos), Scout::new(1, base_pos)];
-        let collectors = vec![Collector::new(2, base_pos), Collector::new(3, base_pos)];
+        let scouts = vec![Scout::new(base_pos), Scout::new(base_pos)];
+        let collectors = vec![Collector::new(base_pos), Collector::new(base_pos)];
 
         Self {
             map,
@@ -81,7 +81,6 @@ impl Simulation {
                 &self.base.known_resources,
                 self.base.position,
                 &targeted,
-                &self.base.known_obstacles,
             );
             // Si ce collector vient de choisir une cible, on l'ajoute immédiatement
             // pour que le prochain collector dans la boucle ne la prenne pas.
